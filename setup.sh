@@ -1,11 +1,14 @@
 #!/bin/bash
 
+echo "Script started ..."
+
 OS_NAME=$(echo "$RUNNER_OS" | awk '{print tolower($0)}')
 MANIFEST_BASE_URL="https://storage.googleapis.com/flutter_infra_release/releases"
 MANIFEST_URL="${MANIFEST_BASE_URL}/releases_${OS_NAME}.json"
 
 # convert version like 2.5.x to 2.5
 normalize_version() {
+  echo "Normalize version ..."
   if [[ $1 == *x ]]; then
     echo ${1::-2}
   else
@@ -14,14 +17,17 @@ normalize_version() {
 }
 
 latest_version() {
+  echo "Lastest version ..."
   jq --arg arch "$ARCH" '.releases | map(select(.dart_sdk_arch == null or .dart_sdk_arch == $arch)) | first'
 }
 
 latest_channel_version() {
+  echo "Lastest channel version ..."
   jq --arg channel "$1" --arg arch "$ARCH" '.releases | map(select(.channel==$channel) | select(.dart_sdk_arch == null or .dart_sdk_arch == $arch)) | first'
 }
 
 wildcard_version() {
+  echo "Wildcard version ..."
   if [ $2 == *"v"* ]; then  # is legacy version format
     if [[ $1 == any ]]; then
     jq --arg version "$2" '.releases | map(select(.version | startswith($version) )) | first'
@@ -36,6 +42,7 @@ wildcard_version() {
 }
 
 get_version() {
+  echo "Get version ..."
   if [[ $1 == any && $2 == any ]]; then
     latest_version
   elif [[ $2 == any ]]; then
@@ -46,6 +53,7 @@ get_version() {
 }
 
 get_version_manifest() {
+  echo "Get version manifest ..."
   releases_manifest=$(curl --silent --connect-timeout 15 --retry 5 $MANIFEST_URL)
   version_manifest=$(echo $releases_manifest | get_version $1 $(normalize_version $2))
 
@@ -58,6 +66,7 @@ get_version_manifest() {
 }
 
 download_archive() {
+  echo "Download archive ..."
   archive_url="$MANIFEST_BASE_URL/$1"
   archive_name=$(basename $1)
   archive_local="$RUNNER_TEMP/$archive_name"
@@ -83,6 +92,7 @@ download_archive() {
 }
 
 transform_path() {
+  echo "Transform path ..."
   if [[ $OS_NAME == windows ]]; then
     echo $1 | sed -e 's/^\///' -e 's/\//\\/g'
   else
@@ -108,10 +118,14 @@ CHANNEL="${@:$OPTIND:1}"
 VERSION="${@:$OPTIND+1:1}"
 ARCH=$(echo "${@:$OPTIND+2:1}" | awk '{print tolower($0)}')
 
+echo "Transforming path ${CACHE_PATH}..."
 SDK_CACHE="$(transform_path ${CACHE_PATH})"
 PUB_CACHE="$(transform_path ${CACHE_PATH}/.pub-cache)"
 
+echo "Checking path ${SDK_CACHE}/bin/flutter..."
+
 if [[ ! -x "${SDK_CACHE}/bin/flutter" ]]; then
+  echo "Path ${SDK_CACHE}/bin/flutter not found ..."
   if [[ $CHANNEL == master ]]; then
     git clone -b master https://github.com/flutter/flutter.git "$SDK_CACHE"
   else
@@ -131,3 +145,5 @@ echo "PUB_CACHE=${PUB_CACHE}" >>$GITHUB_ENV
 echo "${SDK_CACHE}/bin" >>$GITHUB_PATH
 echo "${SDK_CACHE}/bin/cache/dart-sdk/bin" >>$GITHUB_PATH
 echo "${PUB_CACHE}/bin" >>$GITHUB_PATH
+
+echo "Script finished!"
